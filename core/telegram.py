@@ -9,11 +9,13 @@ from urllib.parse import urlsplit
 import httpx
 
 
-async def telegram_send(text: str, to: str = "me", confirm_send: bool = False) -> str:
+async def telegram_send(text: str, to: str = "team", confirm_send: bool = False) -> str:
     """Send a plain-text report to a configured chat alias. Requires confirm_send.
 
     Ask the user to approve the report and recipient before setting confirm_send.
     Recipients come only from TELEGRAM_CHATS; raw chat IDs are not accepted.
+    The default recipient is "team", the configured Telegram group. Omit `to`
+    to send to that group; never substitute "me" unless explicitly configured.
     Reports are limited to 40,000 characters and split into 4,000-character parts.
     Do not retry a whole report after partial or uncertain delivery: duplicates
     are possible. No HTML parsing or file attachments are supported.

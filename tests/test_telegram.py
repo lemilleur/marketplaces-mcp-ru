@@ -16,14 +16,14 @@ def test_confirmation_and_allowlist_prevent_network(monkeypatch):
     monkeypatch.setattr(httpx, "AsyncClient", forbidden)
     assert call(text="report")["error"] == "confirmation_required"
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-value")
-    monkeypatch.setenv("TELEGRAM_CHATS", "me:123")
+    monkeypatch.setenv("TELEGRAM_CHATS", "team:123")
     assert not call(text="report", to="456", confirm_send=True)["ok"]
     assert not call(text=" ", confirm_send=True)["ok"]
 
 
 def test_split_and_delivery(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-value")
-    monkeypatch.setenv("TELEGRAM_CHATS", "me:123")
+    monkeypatch.setenv("TELEGRAM_CHATS", "team:123")
     real_client = httpx.AsyncClient
     payloads = []
     def handler(request):
@@ -40,7 +40,7 @@ def test_split_and_delivery(monkeypatch):
 
 def test_timeout_does_not_expose_token_or_retry(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-value")
-    monkeypatch.setenv("TELEGRAM_CHATS", "me:123")
+    monkeypatch.setenv("TELEGRAM_CHATS", "team:123")
     real_client = httpx.AsyncClient
     requests = []
     def handler(request):
@@ -56,7 +56,7 @@ def test_timeout_does_not_expose_token_or_retry(monkeypatch):
 
 def test_proxy_only_configures_telegram_client(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-value")
-    monkeypatch.setenv("TELEGRAM_CHATS", "me:123")
+    monkeypatch.setenv("TELEGRAM_CHATS", "team:123")
     proxy = "http://user:password@proxy.example:8080"
     monkeypatch.setenv("TELEGRAM_PROXY_URL", proxy)
     real_client = httpx.AsyncClient
@@ -74,7 +74,7 @@ def test_proxy_only_configures_telegram_client(monkeypatch):
 
 def test_invalid_proxy_never_sends(monkeypatch):
     monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-value")
-    monkeypatch.setenv("TELEGRAM_CHATS", "me:123")
+    monkeypatch.setenv("TELEGRAM_CHATS", "team:123")
     monkeypatch.setenv("TELEGRAM_PROXY_URL", "socks5://user:secret@proxy.example:1080")
     result = call(text="report", confirm_send=True)
     assert result["error"] == "invalid_telegram_proxy_url"
