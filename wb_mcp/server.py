@@ -14,7 +14,9 @@ Run:
 """
 from __future__ import annotations
 
+import asyncio
 import json
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -99,6 +101,76 @@ async def wb_get_sales(date_from: str, flag: int = 0) -> str:
                              "wb_get_finance_report for reconciliation and spp.")
     return _j(result)
 
+
+
+# --------------------------------------------------------------------------
+# Sales funnel by day for EVERY card in one call.
+#
+# /api/analytics/v3/sales-funnel/products/history rejects an empty nmIds
+# ("at least 1 nmId is expected", checked live 2026-10-21), so through
+# wb_call_method the model first has to page the card list and then batch.
+# --------------------------------------------------------------------------
+FUNNEL_BATCH = 20            # nmIds per history request
+FUNNEL_PAUSE_SEC = 20.0      # analytics host allows about 3 requests per minute
+
+
+async def _all_nm_ids() -> tuple[list[int], dict | None]:
+    spec = catalog.get("wb_content_cards_list")
+    cursor: dict = {"limit": 100}
+    ids: list[int] = []
+    while True:
+        res = await client.call_spec(spec, json_body={
+            "settings": {"cursor": cursor, "filter": {"withPhoto": -1}}})
+        if not res.get("ok"):
+            return ids, res
+        data = res.get("data") or {}
+        cards = data.get("cards") or []
+        ids.extend(c["nmID"] for c in cards if isinstance(c, dict) and "nmID" in c)
+        nxt = data.get("cursor") or {}
+        if len(cards) < cursor["limit"] or not nxt.get("nmID"):
+            return ids, None
+        cursor = {"limit": 100, "updatedAt": nxt.get("updatedAt"), "nmID": nxt.get("nmID")}
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+async def wb_get_funnel_history(date_from: str, date_to: str, nm_ids: str = "") -> str:
+    """WB sales funnel by day: card opens, add-to-cart, orders, buyouts, conversions.
+
+    date_from, date_to: YYYY-MM-DD. nm_ids: comma-separated nmID filter; empty =
+    every card of the seller (the tool pages the card list itself). Requests go
+    in batches of 20 nmIds with a pause between them, because the analytics host
+    allows about 3 requests per minute: a large catalogue takes minutes.
+    Returns the history rows of every batch, untouched.
+    """
+    if not all(re.fullmatch(r"\d{4}-\d{2}-\d{2}", d) for d in (date_from, date_to)):
+        return _j({"ok": False, "error": "dates_must_be_YYYY_MM_DD"})
+    if nm_ids.strip():
+        try:
+            ids = [int(x) for x in nm_ids.split(",") if x.strip()]
+        except ValueError:
+            return _j({"ok": False, "error": "nm_ids_must_be_comma_separated_integers"})
+    else:
+        ids, err = await _all_nm_ids()
+        if err:
+            return _j(err)
+    if not ids:
+        return _j({"ok": False, "error": "no_cards_found"})
+    spec = catalog.get("wb_post_api_analytics_sales_funnel_products_history")
+    rows: list = []
+    for i in range(0, len(ids), FUNNEL_BATCH):
+        if i:
+            await asyncio.sleep(FUNNEL_PAUSE_SEC)
+        res = await client.call_spec(spec, json_body={
+            "selectedPeriod": {"start": date_from, "end": date_to},
+            "nmIds": ids[i:i + FUNNEL_BATCH], "skipDeletedNm": True,
+            "aggregationLevel": "day"})
+        if not res.get("ok"):
+            res["fetched_before_error"] = len(rows)
+            return _j(res)
+        data = res.get("data")
+        batch = data.get("data", data) if isinstance(data, dict) else data
+        rows.extend(batch if isinstance(batch, list) else [batch])
+    return _j({"ok": True, "nm_count": len(ids), "rows": rows})
 
 @mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
 async def wb_get_order_feed(date_from: str, date_to: str, limit: int = 1000,
