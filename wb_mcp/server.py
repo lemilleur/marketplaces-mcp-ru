@@ -96,18 +96,18 @@ async def wb_get_sales(date_from: str, flag: int = 0) -> str:
     annotations={"title": "WB current stocks", "readOnlyHint": True,
                  "openWorldHint": True},
 )
-async def wb_get_stocks(date_from: str = "2020-01-01") -> str:
-    """Get the current Wildberries stock snapshot (Statistics API, 1 req/min).
+async def wb_get_stocks(limit: int = 1000, offset: int = 0) -> str:
+    """Get current WB warehouse stocks using the Analytics API.
 
-    Stocks have no history — this is a point-in-time snapshot. Use an early
-    date_from to get the full current set.
-
-    Args:
-        date_from: RFC3339 date; default "2020-01-01" returns everything in stock now.
-    Returns JSON: {"ok": true, "data": [ stock rows ]} with quantity, warehouseName, nmId.
+    Requires the Analytics token category. Data refreshes every 30 minutes.
+    Use offset pagination; the deprecated Statistics stocks method is not used.
+    Response follows the current Analytics schema, not the old flat stock list.
     """
-    spec = catalog.get("wb_stats_stocks")
-    return _j(await client.call_spec(spec, query={"dateFrom": date_from}))
+    if not 1 <= limit <= 250000 or offset < 0:
+        return _j({"ok": False, "error": "invalid_limit_or_offset"})
+    spec = catalog.get("wb_post_api_analytics_stocks_report_wb_warehouses")
+    return _j(await client.call_spec(
+        spec, json_body={"nmIds": [], "chrtIds": [], "limit": limit, "offset": offset}))
 
 
 @mcp.tool(

@@ -30,6 +30,8 @@ def build() -> FastMCP:
     for mod_name in SERVICE_MODULES:
         mod = importlib.import_module(mod_name)
         combined._tool_manager._tools.update(mod.mcp._tool_manager._tools)
+    from core.telegram import register
+    register(combined)
     return combined
 
 
