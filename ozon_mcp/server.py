@@ -22,6 +22,7 @@ from mcp.server.fastmcp import FastMCP
 from core.client import MarketplaceClient, ServiceConfig
 from core.entities import EntityIndex
 from core.registry import Catalog
+from core.snapshots import register_history_tool
 from core.safety import check_gate
 from core.tools import register_cabinet_tools, register_generic_tools
 from core.workflows import Workflows, register_workflow_tools
@@ -65,6 +66,7 @@ register_generic_tools(
 )
 register_cabinet_tools(mcp, svc="ozon", client=client, catalog=catalog)
 register_workflow_tools(mcp, svc="ozon", workflows=Workflows.from_yaml(WORKFLOWS_PATH))
+register_history_tool(mcp, svc="ozon", kinds=["prices", "stocks"])
 
 
 def _j(obj) -> str:
