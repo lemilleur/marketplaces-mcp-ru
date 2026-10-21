@@ -32,8 +32,6 @@ def build() -> FastMCP:
         combined._tool_manager._tools.update(mod.mcp._tool_manager._tools)
     from core.telegram import register
     register(combined)
-    from core.analytics_addon import register as register_analytics
-    register_analytics(combined)
     return combined
 
 

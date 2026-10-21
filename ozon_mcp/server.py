@@ -66,7 +66,7 @@ register_generic_tools(
 )
 register_cabinet_tools(mcp, svc="ozon", client=client, catalog=catalog)
 register_workflow_tools(mcp, svc="ozon", workflows=Workflows.from_yaml(WORKFLOWS_PATH))
-register_history_tool(mcp, svc="ozon", kinds=["prices", "stocks"])
+register_history_tool(mcp, svc="ozon", kinds=["prices", "stocks"], client=client)
 
 
 def _j(obj) -> str:

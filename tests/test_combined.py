@@ -36,8 +36,6 @@ def test_combined_is_exact_union_of_services():
 
     got = _tool_names(combined.build())
     per_service.add("telegram_send")
-    from core.analytics_addon import TOOLS
-    per_service.update(name for name, _ in TOOLS)
     assert got == per_service, (
         "combined server is not the exact union of the service tools "
         f"(missing: {per_service - got}, extra: {got - per_service})"

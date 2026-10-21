@@ -8,8 +8,9 @@
 ### Добавлено
 - **Ежедневные снимки и история.** `python -m core.snapshots` раз в сутки
   сохраняет цены и акции, остатки Ozon и WB и рекламные кампании Ozon в SQLite
-  (`~/.marketplace-mcp/snapshots.sqlite` или `$MARKETPLACE_MCP_SNAPSHOT_DB`).
-  Читают их `ozon_get_history`, `wb_get_history`, `ozon_perf_get_history`.
+  (`~/.marketplace-mcp/snapshots.sqlite` или `$SNAPSHOT_DB_PATH`), отдельно по
+  каждому кабинету. Читают их `ozon_get_history`, `wb_get_history`,
+  `ozon_perf_get_history`, только для активного кабинета.
   Ни один метод площадок не отвечает, какая цена для покупателя была 15-го:
   с автоакциями Ozon она гуляет внутри min_price без участия продавца.
 - **`wb_get_funnel_history`**: воронка WB по дням по всем карточкам одним
@@ -18,6 +19,20 @@
 - **`ozon_perf_get_daily_stats`**: дневная статистика рекламы числами, а не
   CSV с десятичной запятой; итоги по дням и ДРР рекламных заказов.
 - Рецепт `sales_swing_diagnosis` в `ozon_mcp/workflows.yaml`.
+
+### Изменено
+- **`core.analytics_addon` разобран по сервисам.** Модуль ходил в API своим
+  HTTP-клиентом мимо `MarketplaceClient`: без списка разрешённых хостов, а
+  `ozon_report` вызывал `/v*/report/*/create`, помеченные в каталоге записью,
+  без подтверждения. Его инструменты убраны: `wb_funnel_all` →
+  `wb_get_funnel_history`, `ozon_perf_daily` → `ozon_perf_get_daily_stats`,
+  `snapshot_run`/`history_get` → `core.snapshots` и `{svc}_get_history`,
+  `ozon_analytics_data_checked` → проверка в клиенте для любого вызова
+  `/v1/analytics/data`, `ozon_product_queries_details` → `ozon_call_method` с
+  `ozon_post_v1_analytics_product_queries_details`. Отчёты Ozon создаются как
+  раньше, через `ozon_write_method` с подтверждением. Таблица снимков и формат
+  разделения по кабинетам прежние, накопленная история читается.
+  `python -m core.analytics_addon snapshot` перенаправляется в `core.snapshots`.
 
 ### Исправлено
 - **Ozon: устаревшие метрики воронки в `/v1/analytics/data` больше не
