@@ -79,8 +79,8 @@ uvx marketplaces-mcp-ru
 
 | маркетплейс | пакет | методов |
 |---|---|---:|
-| Ozon Seller | [`ozon-mcp-ru`](https://github.com/ilyautov/ozon-mcp-ru) | 441 |
-| Wildberries | [`wildberries-mcp-ru`](https://github.com/ilyautov/wildberries-mcp-ru) | 307 |
+| Ozon Seller | [`ozon-mcp-ru`](https://github.com/ilyautov/ozon-mcp-ru) | 445 |
+| Wildberries | [`wildberries-mcp-ru`](https://github.com/ilyautov/wildberries-mcp-ru) | 308 |
 | Яндекс Маркет | [`yandex-market-mcp-ru`](https://github.com/ilyautov/yandex-market-mcp-ru) | 165 |
 | Авито | [`avito-mcp-ru`](https://github.com/ilyautov/avito-mcp-ru) | 64 |
 
@@ -147,8 +147,8 @@ npx -y marketplaces-mcp-ru doctor --live  # то же через npm, без Pyt
 
 | Каталог | Файл | Методов | Секций |
 |---|---|---:|---|
-| Wildberries | `wb_mcp/endpoints.yaml` | 307 | 70 |
-| Ozon Seller | `ozon_mcp/endpoints.yaml` | 441 | 67 |
+| Wildberries | `wb_mcp/endpoints.yaml` | 308 | 70 |
+| Ozon Seller | `ozon_mcp/endpoints.yaml` | 445 | 67 |
 | Ozon Performance (реклама) | `ozon_mcp/perf_endpoints.yaml` | 45 | 6 |
 | Яндекс Маркет (Partner API) | `yandex_mcp/endpoints.yaml` | 165 | 29 |
 | Авито (API для бизнеса) | `avito_mcp/endpoints.yaml` | 64 | 8 |

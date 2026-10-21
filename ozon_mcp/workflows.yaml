@@ -40,15 +40,18 @@ workflows:
     when_to_use: Understand real per-order profitability after Ozon fees.
     steps:
       - operation_id: ozon_finance_transactions
-        why: Per-order accruals, commissions, logistics, returns (result.operations).
+        why: Current raw accruals, one day per request, paginated by last_id (accruals array).
+      - operation_id: ozon_finance_accrual_types
+        why: Resolve fee type names before categorizing or aggregating amounts.
       - operation_id: ozon_prices_get
         why: Per-SKU commission percentages and current prices.
     interpret: >
-      Net = sale amount − sales commission − logistics − returns − ads. Pull one
-      month at a time (API caps the window). Join transactions to SKU via
-      posting_number. Watch fbo vs fbs commission differences.
+      Collect each day and every last_id page in the requested period. Preserve
+      signed decimal amounts and do not double-count total_amount and components.
+      The retired v3 transaction schema and precomputed totals no longer apply.
+      Keep unknown fee categories explicit instead of inventing a classification.
     common_mistakes:
-      - Requesting more than one month per call (API rejects it).
+      - Sending the retired filter/page/page_size request instead of date/last_id.
       - Forgetting returns and storage fees in the net.
 
   - name: catalog_sync

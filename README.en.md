@@ -77,8 +77,8 @@ The catalog is built schema-driven from the official OpenAPI specs:
 
 | Catalog | File | Methods | Sections |
 |---|---|---:|---|
-| Wildberries | `wb_mcp/endpoints.yaml` | 307 | 70 |
-| Ozon Seller | `ozon_mcp/endpoints.yaml` | 441 | 67 |
+| Wildberries | `wb_mcp/endpoints.yaml` | 308 | 70 |
+| Ozon Seller | `ozon_mcp/endpoints.yaml` | 445 | 67 |
 | Ozon Performance (ads) | `ozon_mcp/perf_endpoints.yaml` | 45 | 6 |
 | Yandex Market (Partner API) | `yandex_mcp/endpoints.yaml` | 165 | 29 |
 | Avito (business API) | `avito_mcp/endpoints.yaml` | 64 | 8 |

@@ -7,27 +7,28 @@ workflows:
     category: analytics
     when_to_use: See recent sales, orders and returns to gauge momentum.
     steps:
-      - operation_id: wb_stats_orders
-        why: Orders since a date (incremental by lastChangeDate).
-      - operation_id: wb_stats_sales
-        why: Sales and returns since the same date.
+      - operation_id: wb_order_feed
+        why: Current orders, buyouts and returns. Last 31 days, full RFC3339 dates.
     interpret: >
-      Compare orders vs sales to spot a buyout gap. Statistics endpoints are
-      rate-limited to 1 req/min — use wb_fetch_all which paces the date cursor.
+      Page with offset and a stable snapshotTime. Filter current status carefully;
+      the period is current-status time, not necessarily order-creation time.
+      Legacy Statistics may return empty data despite real orders. For financial
+      reconciliation use wb_report_realization, not preliminary operational prices.
     common_mistakes:
       - Hammering the endpoint — 1 req/min limit, expect slow walks.
-      - Confusing order date with change date (the flag parameter controls it).
+      - Treating an empty legacy Statistics response as proof of zero sales.
+      - Treating current statuses as a complete historical event log.
 
   - name: stock_health
     category: warehouse
     when_to_use: Check current stock and warehouse remains to avoid stockouts.
     steps:
-      - operation_id: wb_stats_stocks
+      - operation_id: wb_post_api_analytics_stocks_report_wb_warehouses
         why: Current stock snapshot (no history).
       - operation_id: wb_analytics_warehouse_remains
         why: Detailed warehouse-remains report (async — returns a task_id to poll).
     interpret: >
-      wb_stats_stocks is a point-in-time snapshot; there is no history, so store
+      Current Analytics stocks are a point-in-time snapshot; there is no history, so store
       snapshots yourself for trends. The remains report is async: create it, poll
       status, then download.
     common_mistakes:
@@ -47,36 +48,35 @@ workflows:
 
   - name: reorder_planner
     category: warehouse
-    when_to_use: Decide what to resupply — compute days-of-cover from sales velocity vs current stock.
+    when_to_use: Estimate resupply needs from realized sales and current stock.
     steps:
-      - operation_id: wb_stats_sales
-        why: Sales over a window to compute average daily sales (ADS) per nmId.
-      - operation_id: wb_stats_stocks
-        why: Current available quantity per nmId (point-in-time snapshot).
+      - operation_id: wb_report_realization
+        why: Realized sales by nmId; select actual sales and returns, not fee rows.
+      - operation_id: wb_post_api_analytics_stocks_report_wb_warehouses
+        why: Current Analytics stock snapshot.
     interpret: >
-      Per nmId: ADS = (count of sale rows in window) / (days in window). Use the
-      `nmId` field to join sales to stock. Days-of-cover = stock `quantity`
-      (available for sale) / ADS. Flag SKUs where cover < your lead time + safety
-      buffer. `inWayToClient`/`inWayFromClient` are in transit — not yet sellable,
-      don't count them as cover. Both endpoints are 1 req/min — pace with wb_fetch_all.
+      Select matching sale dates and net sale/return quantities. Divide by days
+      to estimate demand, then compare with sellable inventory. Realization data
+      arrives by report period and is not a live order feed. Report missing or
+      partial periods explicitly. Do not use empty legacy Statistics as zero demand.
     common_mistakes:
-      - Counting quantityFull or in-transit units as available cover.
-      - Using too short a sales window — ADS gets noisy under ~14 days.
+      - Counting storage or delivery rows as sold units.
+      - Treating unavailable report days as zero sales.
 
   - name: abc_analysis
     category: analytics
-    when_to_use: Rank products A/B/C by revenue contribution to focus attention.
+    when_to_use: Rank products by realized financial revenue.
     steps:
-      - operation_id: wb_stats_sales
-        why: Sale rows with revenue fields per nmId over the period.
+      - operation_id: wb_report_realization
+        why: Current Finance rows with nmId, retailAmount, forPay and spp.
     interpret: >
-      Sum `finishedPrice` (buyer-paid, all discounts except WB Wallet) per nmId for
-      gross revenue, or `forPay` for net-to-seller. Sort descending, take cumulative
-      share: A = top SKUs up to 80% of revenue, B = next 15%, C = last 5%. A-items
-      deserve stock priority and ad spend; C-items are candidates to delist.
+      Fetch every rrdId page until HTTP 204. Select actual sales/returns and a
+      consistent revenue metric. Money fields are decimal strings; use Decimal.
+      Keep fees separate and do not sum forPay with retailAmount. Rank cumulative
+      revenue shares for A/B/C. State the chosen metric, dates and completeness.
     common_mistakes:
-      - Mixing forPay (net) and finishedPrice (gross) in the same ranking.
-      - Ranking by unit count instead of revenue.
+      - Mixing gross revenue with net payout or counting fee rows as sales.
+      - Parsing money strings with binary floating point.
 
   - name: reviews_pulse
     category: communications

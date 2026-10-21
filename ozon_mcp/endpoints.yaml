@@ -440,20 +440,43 @@ endpoints:
   section: finance
   method: POST
   host: api-seller.ozon.ru
-  path: /v3/finance/transaction/list
+  path: /v1/finance/accrual/by-day
   scope: seller
   safety: read
-  pagination: page
-  summary: Detailed financial transactions (<=1 month/req). v3.
+  pagination: ozon_accrual
+  summary: Current raw accruals for ONE day. Replaces retired v3 transactions. New request and response schema; not old result.operations or old totals.
   params:
-    body: '{filter:{date:{from,to}, operation_type:[]}, page, page_size}'
+    body: '{date:YYYY-MM-DD,last_id:string}'
   doc: https://docs.ozon.ru/api/seller/
   keywords:
   - финансы
   - транзакции
   - начисления
   - деньги
-  items_path: result.operations
+  items_path: accruals
+- operation_id: ozon_finance_accrual_types
+  section: finance
+  method: POST
+  host: api-seller.ozon.ru
+  path: /v1/finance/accrual/types
+  scope: seller
+  safety: read
+  pagination: none
+  items_path: accrual_types
+  summary: Dictionary of accrual types. Resolve fee categories before aggregating amounts.
+  params:
+    body: '{}'
+  doc: https://docs.ozon.ru/api/seller/#operation/GetFinanceAccrualTypes
+- operation_id: ozon_finance_accrual_postings
+  section: finance
+  method: POST
+  host: api-seller.ozon.ru
+  path: /v1/finance/accrual/postings
+  scope: seller
+  safety: read
+  pagination: none
+  summary: Current accrual details for selected postings. Describe vendor contract before use.
+  doc: https://docs.ozon.ru/api/seller/#operation/GetFinanceAccrualPostings
 - operation_id: ozon_finance_totals
   section: finance
   method: POST
@@ -461,7 +484,7 @@ endpoints:
   path: /v3/finance/transaction/totals
   scope: seller
   safety: read
-  summary: Aggregated financial totals for a period. v3.
+  summary: RETIRED by Ozon. Use daily accruals plus accrual types; old totals are unavailable.
   params:
     body: '{date:{from,to}, transaction_type}'
   doc: https://docs.ozon.ru/api/seller/

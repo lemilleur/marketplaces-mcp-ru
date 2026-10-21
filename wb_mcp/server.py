@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from datetime import datetime
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP
@@ -79,7 +80,10 @@ def _j(obj) -> str:
                  "openWorldHint": True},
 )
 async def wb_get_sales(date_from: str, flag: int = 0) -> str:
-    """Get Wildberries sales and returns since a date (Statistics API, 1 req/min).
+    """LEGACY Statistics sales and returns (may be incomplete or empty).
+
+    Prefer wb_get_order_feed for current operations and wb_get_finance_report
+    for financial reconciliation and spp. Empty legacy data is not zero sales.
 
     Args:
         date_from: RFC3339 date/time in MSK, e.g. "2026-06-01" or "2026-06-01T00:00:00".
@@ -88,7 +92,59 @@ async def wb_get_sales(date_from: str, flag: int = 0) -> str:
     Each row includes saleID, srid, nmId, totalPrice, forPay, lastChangeDate.
     """
     spec = catalog.get("wb_stats_sales")
-    return _j(await client.call_spec(spec, query={"dateFrom": date_from, "flag": flag}))
+    result = await client.call_spec(spec, query={"dateFrom": date_from, "flag": flag})
+    if result.get("ok") and not result.get("data"):
+        result["warning"] = ("Legacy Statistics returned no rows. This does not prove zero sales. "
+                             "Use wb_get_order_feed for operational orders and "
+                             "wb_get_finance_report for reconciliation and spp.")
+    return _j(result)
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+async def wb_get_order_feed(date_from: str, date_to: str, limit: int = 1000,
+                            offset: int = 0, snapshot_time: Optional[str] = None) -> str:
+    """Current WB orders, buyouts and returns: replacement for legacy Statistics.
+
+    Dates must be full RFC3339 with timezone, e.g. 2026-10-01T00:00:00+03:00.
+    Analytics permission required. Maximum period: last 31 days. Period filters
+    CURRENT STATUS time, not necessarily order creation time. One row is one item.
+    Page using pagination offset and the same returned data.snapshotTime.
+    Do not treat current statuses as a complete historical event log.
+    For financial amounts and spp use wb_get_finance_report instead.
+    """
+    if not 1 <= limit <= 1000 or offset < 0:
+        return _j({"ok": False, "error": "invalid_limit_or_offset"})
+    try:
+        start = datetime.fromisoformat(date_from.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(date_to.replace("Z", "+00:00"))
+        if not start.tzinfo or not end.tzinfo or not 0 < (end - start).total_seconds() <= 31 * 86400:
+            raise ValueError("invalid period")
+    except ValueError:
+        return _j({"ok": False, "error": "use_RFC3339_with_timezone_and_period_up_to_31_days"})
+    paging = {"limit": limit, "offset": offset}
+    if snapshot_time:
+        paging["snapshotTime"] = snapshot_time
+    return _j(await client.call_spec(catalog.get("wb_order_feed"), json_body={
+        "selectedPeriod": {"start": date_from, "end": date_to},
+        "pagination": paging, "nmIds": [], "subjectIds": [], "brandNames": [], "tagIds": []}))
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+async def wb_get_finance_report(date_from: str, date_to: str, limit: int = 1000,
+                                rrd_id: int = 0, period: str = "weekly") -> str:
+    """WB realization details, replacing retired reportDetailByPeriod v5.
+
+    Finance permission required. Money fields are decimal STRINGS (use Decimal).
+    CamelCase fields include rrdId, retailAmount, forPay, sellerOperName and spp.
+    spp is supplied by WB; storage/logistics rows are not sales.
+    Page with last row rrdId until HTTP 204, even after a short page.
+    Weekly/daily reports reflect report periods, not a real-time sales feed.
+    """
+    if not 1 <= limit <= 100000 or rrd_id < 0 or period not in ("weekly", "daily"):
+        return _j({"ok": False, "error": "invalid_report_parameters"})
+    return _j(await client.call_spec(catalog.get("wb_report_realization"), json_body={
+        "dateFrom": date_from, "dateTo": date_to, "limit": limit,
+        "rrdId": rrd_id, "period": period}))
 
 
 @mcp.tool(

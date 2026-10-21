@@ -26,6 +26,8 @@ detecting a repeated cursor and by honouring max_items / max_pages.
 """
 from __future__ import annotations
 
+from copy import deepcopy
+
 from typing import Any, Callable, Optional
 
 from .client import MarketplaceClient
@@ -78,7 +80,7 @@ async def fetch_all(
     items: list[Any] = []
     pages = 0
     query = dict(base_query or {})
-    body = dict(base_body or {})
+    body = deepcopy(base_body or {})
     seen_cursor: Optional[str] = None
 
     while True:
@@ -91,10 +93,19 @@ async def fetch_all(
             loc.setdefault("limit", limit)
             if seen_cursor:
                 loc["cursor"] = seen_cursor
-        elif style == "last_id":
-            loc.setdefault("limit", limit)
+        elif style in ("last_id", "ozon_accrual"):
+            if style == "last_id":
+                loc.setdefault("limit", limit)
             if seen_cursor:
                 loc["last_id"] = seen_cursor
+        elif style == "rrdid":
+            loc.setdefault("limit", limit)
+            if seen_cursor is not None:
+                loc["rrdId"] = seen_cursor
+        elif style == "wb_order_feed":
+            paging = body.setdefault("pagination", {})
+            paging.setdefault("limit", min(limit, 1000))
+            paging.setdefault("offset", 0)
         elif style == "page":
             body.setdefault("page_size", limit)
             body["page"] = pages + 1
@@ -140,7 +151,7 @@ async def fetch_all(
             if not cur or cur == seen_cursor:
                 return _result(items, pages, truncated=False)
             seen_cursor = cur
-        elif style == "last_id":
+        elif style in ("last_id", "ozon_accrual"):
             last_id = _dig(data, "result.last_id") or _dig(data, "last_id")
             if not last_id or last_id == seen_cursor:
                 return _result(items, pages, truncated=False)
@@ -156,6 +167,17 @@ async def fetch_all(
                 return _result(items, pages, truncated=False)
             seen_cursor = lcd
             query["dateFrom"] = lcd
+        elif style == "rrdid":
+            cur = page_items[-1].get("rrdId")
+            if cur is None or cur == seen_cursor:
+                return make_error("pagination_error", "Missing or repeated rrdId; report is incomplete")
+            seen_cursor = cur
+        elif style == "wb_order_feed":
+            snapshot = _dig(data, "data.snapshotTime")
+            if not snapshot:
+                return make_error("pagination_error", "Missing snapshotTime; order feed is incomplete")
+            body["pagination"]["snapshotTime"] = snapshot
+            body["pagination"]["offset"] += len(page_items)
         elif style == "page_query":
             has_more = _dig(data, "hasMore")
             if has_more is False:

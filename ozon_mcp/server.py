@@ -13,6 +13,7 @@ Run:
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 from typing import Optional
 
@@ -68,6 +69,25 @@ register_workflow_tools(mcp, svc="ozon", workflows=Workflows.from_yaml(WORKFLOWS
 
 def _j(obj) -> str:
     return json.dumps(obj, ensure_ascii=False, indent=2, default=str)
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+async def ozon_get_finance_accruals(day: str, last_id: str = "") -> str:
+    """Current Ozon financial accruals for ONE day, replacing retired v3 transactions.
+
+    day: YYYY-MM-DD. Page with response last_id until it is empty. To build a
+    period report, collect every day and every page. Raw accruals are not the old
+    result.operations schema; accrual_id is not a fee-category identifier.
+    Fetch ozon_finance_accrual_types for fee categories. Preserve amount signs
+    and decimal precision; do not count total_amount and its components twice.
+    """
+    try:
+        if date.fromisoformat(day).isoformat() != day:
+            raise ValueError("invalid date")
+    except ValueError:
+        return _j({"ok": False, "error": "day_must_be_YYYY_MM_DD"})
+    return _j(await client.call_spec(catalog.get("ozon_finance_transactions"),
+                                   json_body={"date": day, "last_id": last_id}))
 
 
 # --------------------------------------------------------------------------

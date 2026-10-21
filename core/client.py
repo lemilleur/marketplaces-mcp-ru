@@ -345,14 +345,23 @@ class MarketplaceClient:
                 self._invalidate_token(creds or {})
 
             if resp.status_code == 429 and attempt < MAX_RETRIES:
-                retry_after = _parse_retry_after(resp.headers.get("Retry-After"))
+                retry_after = _parse_retry_after(
+                    resp.headers.get("Retry-After") or resp.headers.get("X-RateLimit-Retry"))
                 delay = retry_after if retry_after is not None else BACKOFF_BASE * (2**attempt)
                 await asyncio.sleep(min(delay, 60.0))
                 attempt += 1
                 continue
 
             if resp.is_success:
-                return {"ok": True, "status": resp.status_code, "data": _parse_body(resp)}
+                data = _parse_body(resp)
+                result = {"ok": True, "status": resp.status_code, "data": data}
+                if self.config.name == "wb" and data == [] and path in (
+                    "/api/v1/supplier/orders", "/api/v1/supplier/sales"
+                ):
+                    result["warning"] = ("Legacy Statistics returned no rows; do not infer zero orders/sales. "
+                                         "Use wb_order_feed for current statuses and "
+                                         "wb_report_realization for finances and spp.")
+                return result
 
             etype, retryable = classify_status(resp.status_code)
             msg = (f"{self.config.name.upper()} API returned {resp.status_code}: "
@@ -367,7 +376,8 @@ class MarketplaceClient:
                 operation_id=operation_id,
                 endpoint=path,
                 retryable=retryable,
-                retry_after_seconds=_parse_retry_after(resp.headers.get("Retry-After")),
+                retry_after_seconds=_parse_retry_after(
+                    resp.headers.get("Retry-After") or resp.headers.get("X-RateLimit-Retry")),
                 details=_capped_details(resp),
             )
 
@@ -380,6 +390,23 @@ class MarketplaceClient:
         json_body: Optional[Any] = None,
         creds_override: Optional[dict[str, str]] = None,
     ) -> dict:
+        if self.config.name == "ozon" and spec.path == "/v3/finance/transaction/totals":
+            return make_error("deprecated_method",
+                "Ozon retired transaction totals. Collect ozon_finance_transactions "
+                "(date,last_id) for every day and classify using ozon_finance_accrual_types. "
+                "Raw accruals are not old precomputed totals.", operation_id=spec.operation_id)
+        if self.config.name == "ozon" and spec.operation_id == "ozon_finance_transactions":
+            if not isinstance(json_body, dict) or not json_body.get("date"):
+                return make_error("invalid_params",
+                    "Use current accrual request {date:YYYY-MM-DD,last_id:string}; "
+                    "old filter/page/page_size is retired.", operation_id=spec.operation_id)
+        if self.config.name == "wb" and spec.operation_id == "wb_report_realization" and query:
+            if json_body:
+                return make_error("invalid_params", "Use body only for the current finance report")
+            json_body = dict(query)
+            if "rrdid" in json_body:
+                json_body["rrdId"] = json_body.pop("rrdid")
+            query = None
         try:
             path = spec.render_path(path_values or {})
         except KeyError as missing:

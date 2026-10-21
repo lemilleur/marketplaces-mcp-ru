@@ -156,7 +156,7 @@ endpoints:
   safety: read
   pagination: lastchangedate
   rate_limit: 1 req/min
-  summary: Sales and returns since dateFrom. Incremental by lastChangeDate.
+  summary: LEGACY preliminary sales/returns. May omit real orders; prefer wb_order_feed and wb_report_realization. Empty data is not proof of zero sales.
   params:
     query: dateFrom (RFC3339), flag
   doc: https://dev.wildberries.ru/en/openapi/reports
@@ -174,7 +174,7 @@ endpoints:
   safety: read
   pagination: lastchangedate
   rate_limit: 1 req/min
-  summary: Orders since dateFrom. Incremental by lastChangeDate.
+  summary: LEGACY preliminary orders. Prefer wb_order_feed; empty data is not proof of zero orders.
   params:
     query: dateFrom (RFC3339), flag
   doc: https://dev.wildberries.ru/en/openapi/reports
@@ -219,22 +219,37 @@ endpoints:
   - приход
 - operation_id: wb_report_realization
   section: statistics
-  method: GET
-  host: statistics-api.wildberries.ru
-  path: /api/v5/supplier/reportDetailByPeriod
-  scope: statistics
+  method: POST
+  host: finance-api.wildberries.ru
+  path: /api/finance/v1/sales-reports/detailed
+  scope: finance
   safety: read
   pagination: rrdid
   rate_limit: 1 req/min
-  summary: Realization report (financial line items) for a period. Cursor via rrdid.
+  summary: Current realization details. CamelCase fields, decimal-string money, spp. Page by body rrdId until HTTP 204.
   params:
-    query: dateFrom, dateTo, limit<=100000, rrdid
+    body: '{dateFrom,dateTo,limit<=100000,rrdId,period:weekly|daily,fields:[]}'
   doc: https://dev.wildberries.ru/en/openapi/financial-reports-and-accounting
   keywords:
   - реализация
   - финотчёт
   - отчёт о реализации
   - детализация
+- operation_id: wb_order_feed
+  section: analytics
+  method: POST
+  host: seller-analytics-api.wildberries.ru
+  path: /api/analytics/v1/order-feed
+  scope: analytics
+  safety: read
+  pagination: wb_order_feed
+  items_path: data.orders
+  rate_limit: 1 req/min
+  summary: Current orders, buyouts and returns; replacement for legacy Statistics orders/sales. Last 31 days, period is CURRENT STATUS time. Not a historical event ledger.
+  params:
+    body: '{selectedPeriod:{start:RFC3339,end:RFC3339},pagination:{limit,offset,snapshotTime},nmIds:[],subjectIds:[],brandNames:[],tagIds:[]}'
+  doc: https://dev.wildberries.ru/docs/openapi/analytics#tag/orderFeed
+  keywords: [заказы, продажи, выкупы, возвраты, лента заказов]
 - operation_id: wb_analytics_funnel
   section: analytics
   method: POST
@@ -3017,7 +3032,7 @@ endpoints:
   safety: read
   summary: Детализации к отчётам реализации за период
   doc: ''
-  pagination: none
+  pagination: rrdid
 - operation_id: wb_post_api_finance_acquiring_list
   section: Финансовые отчёты
   method: POST
