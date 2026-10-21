@@ -26,7 +26,11 @@ Run:
 """
 from __future__ import annotations
 
+import csv
+import io
 import json
+import re
+from datetime import date
 from pathlib import Path
 
 from mcp.server.fastmcp import FastMCP
@@ -86,6 +90,91 @@ register_workflow_tools(
 def _j(obj) -> str:
     return json.dumps(obj, ensure_ascii=False, indent=2, default=str)
 
+
+
+# --------------------------------------------------------------------------
+# Daily statistics as JSON.
+#
+# GET /api/client/statistics/daily answers with semicolon CSV, decimal comma,
+# one row per campaign per day. Live header on 2026-10-21:
+#   ID;Название;Дата;Показы;Клики;Расход, ₽;Заказы, шт.;Заказы, ₽
+# Through ozon_perf_call_method the model receives that CSV as one string and
+# has to parse "916,71" itself. This tool returns numbers.
+# --------------------------------------------------------------------------
+_COLS = {"ID": "campaign_id", "Название": "campaign", "Дата": "date",
+         "Показы": "views", "Клики": "clicks", "Расход, ₽": "spend_rub",
+         "Заказы, шт.": "orders", "Заказы, ₽": "orders_rub"}
+
+
+def _number(text: str):
+    t = (text or "").strip().replace("\u00a0", "").replace(" ", "")
+    if re.fullmatch(r"-?\d+", t):
+        return int(t)
+    if re.fullmatch(r"-?\d+[.,]\d+", t):
+        return float(t.replace(",", "."))
+    return (text or "").strip()
+
+
+def parse_daily_csv(text: str) -> list[dict]:
+    """Semicolon CSV from statistics/daily -> rows with English keys and numbers."""
+    text = (text or "").lstrip("\ufeff")
+    if not text.strip():
+        return []
+    rows = []
+    for raw in csv.DictReader(io.StringIO(text), delimiter=";"):
+        row = {}
+        for key, value in raw.items():
+            if key is None:
+                continue
+            name = _COLS.get(key.strip(), key.strip())
+            row[name] = (value or "").strip() if name in ("campaign_id", "campaign", "date") \
+                else _number(value)
+        rows.append(row)
+    return rows
+
+
+def summarize_by_day(rows: list[dict]) -> list[dict]:
+    """Totals across campaigns per day, with ad cost share (ДРР) of ad-attributed orders."""
+    days: dict[str, dict] = {}
+    for r in rows:
+        d = days.setdefault(r.get("date", ""), {"date": r.get("date", ""), "views": 0,
+                            "clicks": 0, "spend_rub": 0.0, "orders": 0, "orders_rub": 0.0})
+        for k in ("views", "clicks", "spend_rub", "orders", "orders_rub"):
+            v = r.get(k)
+            d[k] += v if isinstance(v, (int, float)) else 0
+    out = []
+    for d in sorted(days.values(), key=lambda x: x["date"]):
+        d["spend_rub"] = round(d["spend_rub"], 2)
+        d["orders_rub"] = round(d["orders_rub"], 2)
+        d["drr_pct"] = round(d["spend_rub"] / d["orders_rub"] * 100, 1) if d["orders_rub"] else None
+        out.append(d)
+    return out
+
+
+@mcp.tool(annotations={"readOnlyHint": True, "openWorldHint": True})
+async def ozon_perf_get_daily_stats(date_from: str, date_to: str) -> str:
+    """Ad statistics per campaign per day as JSON numbers, plus totals per day with ДРР.
+
+    date_from, date_to: YYYY-MM-DD. Wraps GET /api/client/statistics/daily.
+    Ozon attributes an ad order to the CLICK date, so per-day ad orders do not
+    match per-day seller orders; compare over a week, not a day.
+    """
+    for d in (date_from, date_to):
+        try:
+            if date.fromisoformat(d).isoformat() != d:
+                raise ValueError
+        except ValueError:
+            return _j({"ok": False, "error": "dates_must_be_YYYY_MM_DD"})
+    res = await client.call_spec(catalog.get("ozonperf_get_api_client_statistics_daily"),
+                                 query={"dateFrom": date_from, "dateTo": date_to})
+    if not res.get("ok"):
+        return _j(res)
+    data = res.get("data")
+    if not isinstance(data, str):
+        return _j(res)  # Ozon switched to JSON: pass it through untouched
+    rows = parse_daily_csv(data)
+    return _j({"ok": True, "rows": rows, "by_day": summarize_by_day(rows),
+               "note": "Ad orders are attributed to the click date."})
 
 def main() -> None:
     """Console entry point: stdio by default, HTTP with MCP_TRANSPORT=http."""
