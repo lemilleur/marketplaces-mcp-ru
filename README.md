@@ -295,3 +295,19 @@ MIT.
 - [**cordon**](https://github.com/ilyautov/cordon): детерминированный слой между недоверенным контентом и действиями агента
 
 Все проекты одним списком, разобранные по назначению: [ilyautov.github.io](https://ilyautov.github.io/). Исходники: [github.com/ilyautov](https://github.com/ilyautov). Пригодилось, поставьте звезду: по ней это находят другие.
+
+### Дополнительная аналитика
+
+Общий сервер (`serve.py all` / `marketplaces-mcp-ru`) включает инструменты
+`ozon_analytics_data_checked`, `ozon_product_queries_details`, `ozon_report`,
+`ozon_perf_daily`, `wb_funnel_all`, `snapshot_run`, `history_get`.
+Ключи берутся из активных кабинетов с обычным резервом на переменные окружения.
+История снимков разделена по кабинетам и начинается с первого запуска.
+
+Снимок вручную: `python -m core.analytics_addon snapshot`.
+Для ежедневных снимков настройте внешний планировщик на 06:00 МСК.
+`SNAPSHOT_DB_PATH` задаёт путь SQLite; в контейнере укажите постоянный volume.
+По умолчанию база находится в `~/.marketplace-mcp/snapshots.sqlite`.
+Для чтения XLSX-отчётов требуется дополнительный пакет `openpyxl`;
+CSV обрабатывается без него. Совместимость запросов с живыми API и права
+кабинетов следует проверить отдельно: автоматические проверки выполняются без сети.
