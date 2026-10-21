@@ -2856,7 +2856,7 @@ endpoints:
   host: api-seller.ozon.ru
   path: /v1/supply-order/details
   scope: seller
-  safety: write
+  safety: read
   summary: Получить подробную информацию о заявке на поставку
   doc: ''
   items_path: supplies

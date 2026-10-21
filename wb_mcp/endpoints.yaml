@@ -1873,7 +1873,7 @@ endpoints:
   host: supplies-api.wildberries.ru
   path: /api/v1/supplies
   scope: supplies
-  safety: write
+  safety: read
   summary: Список поставок
   doc: ''
   pagination: offset
