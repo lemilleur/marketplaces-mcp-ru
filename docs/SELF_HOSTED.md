@@ -14,6 +14,7 @@ MCP_HTTP_ALLOWED_HOSTS=your-mcp-domain.example
 MARKETPLACE_MCP_HOME=/data
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHATS=
+TELEGRAM_PROXY_URL=
 ```
 
 Keep marketplace credentials in Easypanel too; see `.env.example`. Do not commit
@@ -21,6 +22,13 @@ real credentials. Telegram recipients use aliases, e.g. `me:123,team:-100456`.
 The user must start the bot in a private chat, or add it to the destination group
 with permission to send messages. `telegram_send` sends plain text, not files.
 The `confirm_send` argument is an accidental-send gate, not role-based access.
+
+Optional Telegram-only proxy: `http://username:password@host:port` (HTTP CONNECT)
+or `https://host:port`. Percent-encode special characters in username/password.
+SOCKS and Telegram MTProto proxies are not supported. With an empty setting,
+Telegram connects directly. Global HTTP_PROXY/HTTPS_PROXY variables are ignored
+by the Telegram client. Marketplace clients are unaffected. Proxy failures never
+fall back to a direct Telegram connection.
 
 Attach HTTPS and BasicAuth middleware to every public domain. Do not publish
 container port 8000 directly. Forward requests internally to port 8000.

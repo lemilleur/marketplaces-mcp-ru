@@ -52,3 +52,30 @@ def test_timeout_does_not_expose_token_or_retry(monkeypatch):
     assert result["delivery_uncertain"]
     assert len(requests) == 1
     assert "test-value" not in json.dumps(result)
+
+
+def test_proxy_only_configures_telegram_client(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-value")
+    monkeypatch.setenv("TELEGRAM_CHATS", "me:123")
+    proxy = "http://user:password@proxy.example:8080"
+    monkeypatch.setenv("TELEGRAM_PROXY_URL", proxy)
+    real_client = httpx.AsyncClient
+    options = {}
+    def factory(**kw):
+        options.update(kw)
+        kw.pop("proxy")
+        return real_client(transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json={"ok": True})), **kw)
+    monkeypatch.setattr(httpx, "AsyncClient", factory)
+    assert call(text="report", confirm_send=True)["ok"]
+    assert options["proxy"] == proxy
+    assert options["trust_env"] is False
+
+
+def test_invalid_proxy_never_sends(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "test-value")
+    monkeypatch.setenv("TELEGRAM_CHATS", "me:123")
+    monkeypatch.setenv("TELEGRAM_PROXY_URL", "socks5://user:secret@proxy.example:1080")
+    result = call(text="report", confirm_send=True)
+    assert result["error"] == "invalid_telegram_proxy_url"
+    assert "secret" not in json.dumps(result)

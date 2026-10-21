@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -36,6 +37,17 @@ async def telegram_send(text: str, to: str = "me", confirm_send: bool = False) -
     if not token or to not in chats:
         return result(ok=False, error="telegram_not_configured_or_recipient_not_allowed", sent_parts=0)
 
+    proxy = os.environ.get("TELEGRAM_PROXY_URL", "").strip() or None
+    if proxy:
+        try:
+            parsed = urlsplit(proxy)
+            if parsed.scheme not in ("http", "https") or not parsed.hostname or not parsed.port:
+                raise ValueError("invalid proxy")
+            if parsed.path not in ("", "/") or parsed.query or parsed.fragment:
+                raise ValueError("invalid proxy")
+        except ValueError:
+            return result(ok=False, error="invalid_telegram_proxy_url", sent_parts=0)
+
     # UTF-16 units stay below Telegram's limit even for emoji-heavy reports.
     parts, current, units = [], [], 0
     for char in text:
@@ -49,7 +61,8 @@ async def telegram_send(text: str, to: str = "me", confirm_send: bool = False) -
         parts.append("".join(current))
 
     sent = 0
-    async with httpx.AsyncClient(timeout=20, follow_redirects=False) as client:
+    async with httpx.AsyncClient(timeout=20, follow_redirects=False,
+                                 proxy=proxy, trust_env=False) as client:
         for part in parts:
             for attempt in range(3):
                 try:
