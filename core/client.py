@@ -32,6 +32,30 @@ MAX_RETRIES = 4
 BACKOFF_BASE = 1.5  # seconds; * 2**attempt
 
 
+
+# Ozon answers 400 "deprecated metrics used" to these in /v1/analytics/data, and
+# when they are mixed with live metrics it drops them WITHOUT an error: the
+# response then carries fewer values per row than requested and every value
+# after the first retired one lands under the wrong name. The first five were
+# confirmed live on 2026-10-21; the rest belong to the same funnel family.
+OZON_RETIRED_ANALYTICS_METRICS = frozenset({
+    "hits_view_search", "hits_view_pdp", "hits_view",
+    "session_view", "session_view_search", "session_view_pdp",
+    "hits_tocart", "hits_tocart_search", "hits_tocart_pdp",
+    "conv_tocart", "conv_tocart_search", "conv_tocart_pdp",
+    "position_category",
+})
+
+
+def retired_ozon_metrics(json_body: Any) -> list[str]:
+    """Retired funnel metrics requested in an /v1/analytics/data body, in order."""
+    if not isinstance(json_body, dict):
+        return []
+    metrics = json_body.get("metrics") or []
+    if not isinstance(metrics, list):
+        return []
+    return [m for m in metrics if m in OZON_RETIRED_ANALYTICS_METRICS]
+
 @dataclass
 class ServiceConfig:
     """Per-service wiring. Keeps all WB/Ozon specifics out of the engine.
@@ -400,6 +424,18 @@ class MarketplaceClient:
                 return make_error("invalid_params",
                     "Use current accrual request {date:YYYY-MM-DD,last_id:string}; "
                     "old filter/page/page_size is retired.", operation_id=spec.operation_id)
+        if self.config.name == "ozon" and spec.operation_id == "ozon_analytics_data":
+            retired = retired_ozon_metrics(json_body)
+            if retired:
+                return make_error("invalid_params",
+                    "Ozon retired the sales-funnel metrics in /v1/analytics/data: "
+                    f"{', '.join(retired)}. Mixed with live metrics they are dropped "
+                    "silently and the remaining values shift position, so the request "
+                    "is not sent. Use revenue, ordered_units, delivered_units, returns, "
+                    "cancellations; search positions come from "
+                    "ozon_post_v1_analytics_product_queries_details.",
+                    operation_id=spec.operation_id,
+                    details={"retired_metrics": retired, "http_call_skipped": True})
         if self.config.name == "wb" and spec.operation_id == "wb_report_realization" and query:
             if json_body:
                 return make_error("invalid_params", "Use body only for the current finance report")

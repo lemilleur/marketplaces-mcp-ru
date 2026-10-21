@@ -394,7 +394,9 @@ endpoints:
   path: /v1/analytics/data
   scope: seller
   safety: read
-  summary: Custom report by dimensions+metrics (revenue, ordered_units, conversions).
+  summary: Custom report by dimensions+metrics (revenue, ordered_units, delivered_units,
+    returns, cancellations). Funnel metrics (hits_view*, session_view*, hits_tocart*,
+    conv_tocart*, position_category) are retired by Ozon and rejected before the call.
   params:
     body: '{date_from, date_to, dimension:[], metrics:[], limit<=1000, offset}'
   doc: https://docs.ozon.ru/api/seller/
@@ -523,7 +525,7 @@ endpoints:
   host: api-seller.ozon.ru
   path: /v1/analytics/product-queries
   scope: seller
-  safety: write
+  safety: read
   summary: GetProductQueries (auto-imported from go-client; UNVERIFIED — confirm body/params
     in docs).
   doc: https://docs.ozon.ru/api/seller/
@@ -4166,7 +4168,7 @@ endpoints:
   host: api-seller.ozon.ru
   path: /v1/seller-actions/products/candidates
   scope: seller
-  safety: write
+  safety: read
   summary: Получить список доступных для акции товаров
   doc: ''
   items_path: products
