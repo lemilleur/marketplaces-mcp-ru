@@ -113,3 +113,31 @@ workflows:
       reviews subscription (Premium Plus); expect 403 without it.
     common_mistakes:
       - Assuming review access without the subscription — handle 403 gracefully.
+
+  - name: sales_swing_diagnosis
+    category: analytics
+    when_to_use: Orders jump between busy and quiet days and you need to know why.
+    steps:
+      - operation_id: ozon_analytics_data
+        why: ordered_units and revenue by sku and day; revenue/units gives the price actually paid.
+      - operation_id: ozon_prices_get
+        why: price, marketing_seller_price, min_price and active marketing_actions right now.
+      - operation_id: ozon_post_v1_analytics_product_queries_details
+        why: Search queries, position and impressions per SKU — the traffic side.
+      - operation_id: ozon_post_v1_analytics_stocks
+        why: Stock per cluster; an empty cluster lengthens delivery and cuts conversion.
+    interpret: >
+      First check whether the swing is noise: at an average of λ orders a day,
+      a Poisson day below λ−2√λ or above λ+2√λ is still expected once in a
+      while; worry about several low days in a row, not one. Then split orders
+      into ad-attributed (ozon_perf_get_daily_stats, click-date attribution)
+      and the rest. Compare the price actually paid per day (revenue/units)
+      with ozon_get_history kind=prices: with auto_action_enabled the buyer
+      price moves inside the min_price corridor without any seller action.
+      Traffic drop (fewer impressions, worse position) and conversion drop
+      (same traffic, fewer orders: price, delivery time, reviews) have
+      different fixes. The funnel metrics of /v1/analytics/data are retired.
+    common_mistakes:
+      - Requesting hits_view_*, session_view, hits_tocart or conv_tocart — retired, rejected.
+      - Comparing per-day ad orders with per-day seller orders — attribution dates differ.
+      - Reading one quiet day as a trend on a catalogue with single-digit daily orders.
